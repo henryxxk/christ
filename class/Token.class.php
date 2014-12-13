@@ -15,7 +15,7 @@ class Token{
     
     protected $timeStamp = 0;
     
-    protected $grant_type = "client_credential";
+    protected $grant_type = "authorization_code";
     
     protected $db = null;
     
@@ -26,6 +26,8 @@ class Token{
     protected $pre = "https://api.weixin.qq.com/cgi-bin/";
     
     protected $token = "";
+    
+    protected $oauth_url = "https://open.weixin.qq.com/connect/oauth2/";
     
     function __constructor($appid, $secret){
         $this->appid = $appid;
@@ -40,16 +42,38 @@ class Token{
         );
         $this->db = new Mysql($conf);
         $this->curl = new CurlObj();
-        $this->initToken();
+        //$this->initToken();
     }
     
-    public function initToken(){
-        //$url = $pre + ""
+    
+    public function getData(){
+        
+
+    }
+    
+    public function getTokenFromDb(){
+        $sql = "select from token where `appid` = '".$this->appid."'";
+        
+        $ret = $this->db->sql($sql);
+        
+        if ($ret && count($ret)  == 1){
+            if ($ret['timeStamp'] + $ret['expired'] - 30 > time()){
+                return $ret['token'];
+            }
+        }
+        return false;
+    }
+    
+    public function getTokenOpenId(){
+        
+        $token = $this->getTokenFromDb();
+        
         $params = $this->params;
         
         $params['grant_type'] = $this->grant_type;
-        //$url = $this->getUrl('token', $params);
-        $result = $this->curl->get(url, $param);
+        $params['code'] =  $_GET['code'];
+        $url = $this->getUrl('token', $params);
+        $result = $this->curl->get(url);
         
         $retData = json_decode($result, true);
         if (!$result || $result['errcode']){
@@ -57,17 +81,14 @@ class Token{
         }
         $token = $retData['access_token'];
         $expire = $retData['expires_in'];
-        
+        $openid = $retData['openid'];
         $this->setTokenInfo($token, $expire, time());
-    }
-    
-    public function getData(){
-        
+        return $openid;
     }
     
     public function setTokenInfo($token, $expire, $timeStamp){
-        $sql = "insert into to wx_token where".
-        " 'appid' =".$this->appid." 'secret' = ".$this->secret;
+        $sql = "replace into to token(`appid`,`token`,`expired`.`timeStamp`) value('"
+        .$this->appid."','".$token."','".$expire."','".time()."')";
         
         $ret = $this->db->sql($sql);
         
@@ -85,7 +106,7 @@ class Token{
         foreach ($params as $key => $value) {
             $str.$key."=".$value."&";
         }
-        return $this->pre.$type."?".$str;
+        return $this->oauth_url.$type."?".$str;
     }
 }
 
